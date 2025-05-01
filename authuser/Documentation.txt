@@ -1,0 +1,123 @@
+Com base em todas as interações que tivemos, nos códigos e logs que você compartilhou, podemos montar uma documentação explicativa do projeto "Authuser" até o momento. O projeto parece ser um serviço de **Autenticação e Gerenciamento de Usuários** construído com **Spring Boot**.
+
+Vamos detalhar a estrutura e os componentes que vimos:
+
+---
+
+# Documentação do Projeto Authuser
+
+## 1. Visão Geral
+
+O projeto **Authuser** é um microsserviço desenvolvido com **Spring Boot** em Java, responsável por funcionalidades de autenticação, registro e gerenciamento básico de usuários. Ele se integra a um banco de dados **PostgreSQL** usando **Spring Data JPA/Hibernate** e expõe uma **API RESTful** para interação. O projeto está preparado para ser conteinerizado com **Docker** e integrado em um pipeline de **CI/CD**.
+
+## 2. Estrutura do Projeto
+
+A estrutura de pacotes do projeto, como vista no seu IDE, segue uma organização comum em projetos Spring Boot:
+
+```
+com.ead.authuser/
+├── configs/          # Classes de configuração Spring (ex: ResolverConfig)
+├── controllers/      # Controladores REST que lidam com requisições HTTP (AuthenticationController, UserController)
+├── dto/              # Data Transfer Objects - modelos para entrada/saída de dados (UserDTO, UserView)
+├── enums/            # Enumerações usadas no projeto (UserStatus, UserType)
+├── exceptions/       # Classes para tratamento global de exceções (AppExceptionsHandler)
+├── models/           # Entidades JPA que mapeiam para o banco de dados (UserModel)
+├── repositories/     # Interfaces Spring Data JPA para acesso a dados (UserRepository)
+├── services/         # Interfaces e implementações da camada de serviço (UserService, UserServiceImpl)
+├── specifications/   # Classes para construir critérios de busca dinâmicos (SpecificationTemplate)
+├── shared/           # Utilitários e classes compartilhadas (Utils)
+└── validation/       # Anotações e implementações de validação customizada (UserNameConstraint, UserNameConstraintImpl)
+```
+
+## 3. Componentes Principais e Conceitos
+
+### 3.1. Model (Entidade JPA)
+
+* **`UserModel`**: Representa a entidade "Usuário" e é mapeado para a tabela `TB_USERS` no banco de dados PostgreSQL. Utiliza anotações JPA (`@Entity`, `@Table`, `@Id`, `@GeneratedValue`, `@Column`) para definir o mapeamento e restrições de coluna (`nullable = false`, `unique = true`, `length`).
+
+### 3.2. DTOs (Data Transfer Objects)
+
+* **`UserDTO`**: Utilizado para receber dados nas requisições (ex: registro, atualização). Contém campos como `userName`, `email`, `password`, `fullName`, etc. Utiliza anotações de validação Jakarta Validation (`@NotBlank`, `@Size`, `@Email`) e anotações de grupo (`groups = UserView.RegistrationPost.class`) para aplicar validação específica a diferentes cenários. Também usa `@JsonInclude(JsonInclude.Include.NON_NULL)` para excluir campos nulos na serialização JSON e `@JsonView` para controlar quais campos são incluídos/excluídos em diferentes "vistas" JSON.
+* **`UserView`**: Não é um DTO em si, mas uma classe que contém interfaces aninhadas estáticas (ex: `UserPut`, `PasswordPut`, `RegistrationPost`, `ImagePut`). Estas interfaces são usadas com `@JsonView` e `@Validated(groups = ...)` para definir subconjuntos de campos do `UserDTO` que são relevantes para operações específicas (ex: a view `PasswordPut` pode incluir apenas os campos de senha antiga e nova).
+
+### 3.3. Enums
+
+* **`UserStatus`**, **`UserType`**: Tipos enumerados utilizados para representar o status (ATIVO, INATIVO, etc.) e o tipo (ESTUDANTE, INSTRUTOR, etc.) de um usuário de forma segura e legível no código e no banco de dados (`@Enumerated(EnumType.STRING)`).
+
+### 3.4. Repository (Acesso a Dados)
+
+* **`UserRepository`**: Interface que estende `JpaRepository` (padrão do Spring Data JPA para operações CRUD básicas) e `JpaSpecificationExecutor`. O Spring Data JPA fornece a implementação em tempo de execução.
+    * Define **Query Methods** como `existsByUserName(String username)` e `existsByEmail(String email)`. O Spring Data JPA gera automaticamente as queries SQL `SELECT EXISTS(...)` para verificar a existência de um usuário com base no `userName` ou `email` fornecido.
+
+### 3.5. Service (Lógica de Negócio)
+
+* **`UserService`**: Interface que define o contrato para as operações de negócio relacionadas a usuários (ex: `findAll`, `findById`, `delete`, `save`, `existsByUserName`, `existsByEmail`).
+* **`UserServiceImpl`**: Implementação da interface `UserService`. Contém a lógica de negócio real.
+    * Gerenciada pelo Spring (`@Service`).
+    * Recebe suas dependências (`UserRepository`, `Utils`) via **Injeção por Construtor** (`private final ...` e construtor correspondente), que é a maneira recomendada em Spring moderno.
+    * Implementa os métodos da interface `UserService`, delegando a maioria das operações de persistência para o `UserRepository` injetado.
+
+### 3.6. Controller (Camada Web)
+
+* **`AuthenticationController`**: Lida com endpoints relacionados a autenticação e registro de usuários (ex: `/auth/signup`).
+    * Gerenciado pelo Spring (`@RestController`).
+    * Mapeado para um caminho base (`@RequestMapping("/auth")`).
+    * Recebe dependências essenciais (`UserService`) via Injeção por Construtor.
+    * Contém métodos de handler (`@PostMapping("/signup")`) que recebem requisições HTTP.
+    * Utiliza `@RequestBody UserDTO userDTO` para receber o corpo da requisição e `@Validated(groups = ...)` e `@JsonView` para validar e controlar a desserialização/serialização do DTO.
+    * Contém lógica para verificar conflitos (usuário/email já existem) chamando o `UserService`.
+    * Usa `BeanUtils.copyProperties` (ou mapeadores como ModelMapper/MapStruct) para copiar dados do DTO para o Model.
+    * Chama o `UserService` para executar a lógica de negócio (salvar o usuário).
+    * Retorna `ResponseEntity` com status HTTP apropriados (CREATED, CONFLICT, OK, etc.) e, idealmente, um DTO de resposta seguro.
+* **`UserController`**: Lida com endpoints relacionados ao gerenciamento de usuários (ex: `/users`, `/users/{userId}`, `/users/{userId}/password`, `/users/{userId}/image`).
+    * Similar ao `AuthenticationController`, gerencia requisições, usa Injeção por Construtor (`UserService`).
+    * Contém métodos para buscar (`@GetMapping`), deletar (`@DeleteMapping`), atualizar (`@PutMapping`) usuários.
+    * Utiliza `@PathVariable` para obter IDs da URL, `@RequestParam` para parâmetros de query (como paginação, embora não implementado completamente), `@RequestBody` para corpos de requisição.
+    * Usa `@Validated(groups = ...)` e `@JsonView` para validação e serialização/desserialização controlada por view em operações de atualização.
+    * Delega a lógica principal para o `UserService`.
+
+### 3.7. Validation (Validação Customizada)
+
+* **`UserNameConstraint`**: Anotação customizada de validação (`@Constraint`). Define a mensagem de erro padrão, grupos e o validador associado (`UserNameConstraintImpl`).
+* **`UserNameConstraintImpl`**: Implementa a lógica de validação para `@UserNameConstraint` (`ConstraintValidator`). Contém o método `isValid(String userName, ...)` que verifica se a string `userName` é nula, vazia ou contém espaços em branco.
+
+### 3.8. Specifications (Critérios de Busca Dinâmicos)
+
+* **`SpecificationTemplate`**: Utiliza a biblioteca `net.kaczmarzyk.spring.data.jpa`.
+    * Define interfaces que estendem `Specification<UserModel>` e usam anotações (`@And`, `@Spec`).
+    * Não é para validação de dados, mas para **automatizar a construção de critérios de busca JPA dinâmicos** baseados em parâmetros de requisições HTTP (ex: `/users?userType=STUDENT&userStatus=ACTIVE`).
+    * Estas Specifications são então usadas nos métodos do `UserRepository` (que implementa `JpaSpecificationExecutor`) para filtrar consultas ao banco de dados.
+
+### 3.9. Shared / Utils
+
+* **`Utils`**: Classe anotada com `@Service` contendo métodos utilitários compartilhados (ex: `generateUserId()`). É uma dependência que pode ser injetada em outros componentes, como o `UserServiceImpl`.
+
+### 3.10. Exception Handling
+
+* **`AppExceptionsHandler`**: Classe anotada com `@ControllerAdvice` que fornece tratamento global de exceções para todos os controllers.
+    * Estende `ResponseEntityExceptionHandler` para tratar exceções padrão do Spring MVC (como `MethodArgumentNotValidException` para falhas de validação).
+    * Contém métodos anotados com `@ExceptionHandler` para capturar tipos específicos de exceções (ex: `UserServiceExceptions`, `NullPointerException`, `RuntimeException`) e um handler genérico para `Exception.class`.
+    * Formata as respostas de erro de forma consistente (usando `ErrorMessage` DTO) e realiza logging no servidor.
+
+## 4. Integração e Fluxo
+
+* Requisições HTTP chegam aos Controllers.
+* Controllers validam o `UserDTO` recebido (`@Valid`, `@Validated`).
+* Dados do DTO são copiados para o `UserModel` (ou usados para atualizar um `UserModel` existente).
+* Controllers chamam métodos apropriados no `UserService` injetado.
+* `UserServiceImpl` executa a lógica de negócio, utilizando `Utils` se necessário, e chama métodos no `UserRepository` injetado para interagir com o banco de dados.
+* `UserRepository` (Spring Data JPA) executa as operações de persistência/consulta, convertendo Query Methods ou Specifications em SQL.
+* Erros que ocorrem nos Controllers, Serviços ou Repositórios são capturados pelo `AppExceptionsHandler` global, que retorna uma resposta de erro formatada ao cliente.
+* Critérios de busca em requisições GET são convertidos em `Specification` pela biblioteca `net.kaczmarzyk` e usados pelo `UserRepository`.
+
+## 5. Contexto de CI/CD
+
+Embora os pipelines de CI/CD não tenham sido detalhados no código, a estrutura do projeto (Maven, Spring Boot, Docker) e o nome do repositório indicam que este projeto está configurado para ter um pipeline que automatize:
+
+* Build (Maven)
+* Testes automatizados (unitários, integração)
+* Empacotamento em imagem Docker
+* Publicação da imagem em um registry
+* Deploy em um ambiente de orquestração (como Kubernetes, possivelmente na Oracle Cloud).
+
+Esta documentação cobre os principais componentes e conceitos do projeto "Authuser" que foram abordados em nossas conversas. Ela detalha a responsabilidade de cada parte e como elas interagem dentro da arquitetura Spring Boot.
