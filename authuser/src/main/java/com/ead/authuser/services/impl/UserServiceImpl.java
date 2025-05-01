@@ -7,6 +7,7 @@ import com.ead.authuser.services.UserService; // Importa a interface UserService
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service; // Anotação Spring
 import java.util.List;
 import java.util.Optional;
@@ -59,7 +60,7 @@ public class UserServiceImpl implements UserService { // Implementa a interface
     }
 
     @Override
-    public Page<UserModel> findAll(Pageable pageable) {
-        return userRepository.findAll(pageable);
+    public Page<UserModel> findAll(Specification<UserModel> spec, Pageable pageable) {
+        return userRepository.findAll(spec,pageable);
     }
 }
