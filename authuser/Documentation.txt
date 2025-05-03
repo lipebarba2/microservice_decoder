@@ -1,9 +1,3 @@
-Com base em todas as interações que tivemos, nos códigos e logs que você compartilhou, podemos montar uma documentação explicativa do projeto "Authuser" até o momento. O projeto parece ser um serviço de **Autenticação e Gerenciamento de Usuários** construído com **Spring Boot**.
-
-Vamos detalhar a estrutura e os componentes que vimos:
-
----
-
 # Documentação do Projeto Authuser
 
 ## 1. Visão Geral
