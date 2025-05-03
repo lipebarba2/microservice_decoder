@@ -12,5 +12,5 @@ public class ModuleServiceImpl implements ModuleService {
     public ModuleServiceImpl(ModuleRepository moduleRepository) {
         this.moduleRepository = moduleRepository;
     }
-    
+
 }
