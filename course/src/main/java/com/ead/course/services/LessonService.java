@@ -9,6 +9,6 @@ import java.util.UUID;
 
 public interface LessonService {
 
-    @Query(value = "select * from tb_lessons where module_moduleId = :courseId", nativeQuery = true)
+
     List<ModuleModel> findAllLessonIntoModules(@Param("moduleId") UUID moduleId);
 }
